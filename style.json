@@ -103,8 +103,8 @@
         "text-field": ["get", "name"],
         "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
         "text-size": 15,
-        "text-anchor": "left",
-        "text-offset": [1, 0],
+        "text-anchor": "bottom",
+        "text-offset": [0, -2.5],
         "text-pitch-alignment": "viewport",
         "text-rotation-alignment": "viewport"
       },

@@ -134,7 +134,8 @@
 
     <script type="module">
         import * as THREE from 'three';
-        // Register custom protocol to decode Esri LERC tiles into Mapbox Terrain RGB format
+
+        // ─── LERC → Mapbox Terrain-RGB protocol ───────────────────────────────────
         maplibregl.addProtocol('gebcolerc', (params, abortController) => {
             const tileUrl = params.url.replace('gebcolerc://', 'https://');
 
@@ -163,7 +164,7 @@
                     for (let i = 0; i < pixels.length; i++) {
                         let elevation = pixels[i];
                         if (elevation === noDataValue || isNaN(elevation)) {
-                            elevation = 0; // default to 0 if no data
+                            elevation = 0;
                         }
 
                         // Mapbox Terrain RGB encoding
@@ -172,10 +173,10 @@
                         if (h > 16777215) h = 16777215;
 
                         const idx = i * 4;
-                        imgData.data[idx] = (h >> 16) & 0xFF; // R
-                        imgData.data[idx + 1] = (h >> 8) & 0xFF; // G
-                        imgData.data[idx + 2] = h & 0xFF;  // B
-                        imgData.data[idx + 3] = 255;       // Alpha
+                        imgData.data[idx]     = (h >> 16) & 0xFF; // R
+                        imgData.data[idx + 1] = (h >> 8)  & 0xFF; // G
+                        imgData.data[idx + 2] =  h        & 0xFF; // B
+                        imgData.data[idx + 3] = 255;               // A
                     }
 
                     ctx.putImageData(imgData, 0, 0);
@@ -188,108 +189,227 @@
                 });
         });
 
-        // Initialize MapLibre GL JS
+        // ─── Map initialisation ───────────────────────────────────────────────────
         const map = new maplibregl.Map({
-            container: 'map', // id of the element
-            style: 'style.json', // URL to the style file, configured purely in JSON as requested
-            center: [-60.7880, 14.1050], // starting position [lng, lat]
-            zoom: 9.91, // starting zoom
-            minZoom: 3.5, // limit zooming out to avoid seeing the map as a tiny strip
-            pitch: 76.5, // set pitch to see 3D effect by default
+            container: 'map',
+            style: 'style.json',
+            center: [-60.7880, 14.1050],
+            zoom: 9.91,
+            minZoom: 3.5,
+            pitch: 76.5,
             bearing: -20.7,
             maxPitch: 85,
-            renderWorldCopies: false, // Prevent continuous horizontal scrolling of multiple earths
+            renderWorldCopies: false,
+            // Enable antialiasing so the shared WebGL context works well with Three.js
+            canvasContextAttributes: { antialias: true }
         });
 
-
-        // Add navigation controls
         map.addControl(
             new maplibregl.NavigationControl({
-                visualizePitch: true, // helps with 3d
+                visualizePitch: true,
                 showZoom: true,
                 showCompass: true
             }),
             'top-right'
         );
 
-        // Three.js Animated Water Plane
+        // ─── Three.js Animated Sea-Level Plane ────────────────────────────────────
+        //
+        // Design notes
+        // ============
+        // 1. COORDINATE SYSTEM
+        //    MapLibre's custom-layer matrix (args.defaultProjectionData.mainMatrix)
+        //    transforms Mercator coordinates [0..1, 0..1, z] into clip space.
+        //    We build a local scene whose origin sits at a chosen lng/lat at
+        //    altitude 0 m (true sea level).  Every frame we recompute the
+        //    MercatorCoordinate for that origin so it tracks the exaggerated
+        //    terrain correctly.
+        //
+        // 2. TERRAIN EXAGGERATION
+        //    style.json sets exaggeration: 1.5.  MapLibre scales the terrain mesh
+        //    vertically by that factor, but MercatorCoordinate.fromLngLat(lngLat, 0)
+        //    already returns the *exaggerated* Z for altitude 0 when called each
+        //    frame (the internal transform bakes exaggeration in).  So passing
+        //    altitude = 0 each frame gives us true sea level automatically.
+        //
+        // 3. PLANE GEOMETRY
+        //    A large PlaneGeometry (in metres) centred at the scene origin.
+        //    The scene is rotated so Three.js Y-up maps to MapLibre Z-up, and
+        //    Z is mirrored so it points north (matching MapLibre's convention).
+        //
+        // 4. DEPTH WRITE
+        //    depthWrite: false prevents the translucent water surface from
+        //    occluding the terrain fragments behind it in the depth buffer.
+        //    depthTest: true is kept so the plane is correctly hidden by land
+        //    that rises above sea level.
+        //
+        // 5. SHIMMER ANIMATION
+        //    Two sine waves at human-visible spatial frequencies (30–60 cycles
+        //    across the plane) produce gentle, realistic ripples.
+
+        // A stable geographic origin for the Three.js scene (centre of the view).
+        const SCENE_ORIGIN = new maplibregl.LngLat(-60.7880, 14.1050);
+
+        // Half-width of the sea plane in metres — large enough to fill the view.
+        const SEA_PLANE_HALF_SIZE = 600000; // 600 km each side
+
         const waterLayer = {
             id: 'sea-level-plane',
             type: 'custom',
             renderingMode: '3d',
-            onAdd: function (map, gl) {
-                this.camera = new THREE.Camera();
-                this.scene = new THREE.Scene();
 
-                // Mercator space from 0 to 1
-                const planeGeometry = new THREE.PlaneGeometry(1, 1, 2, 2);
+            onAdd(map, gl) {
+                this.camera = new THREE.Camera();
+                this.scene  = new THREE.Scene();
+
+                // Rotate scene so Three.js Y-up → MapLibre Z-up,
+                // and mirror Z so it points north (MapLibre convention).
+                this.scene.rotateX(Math.PI / 2);
+                this.scene.scale.multiply(new THREE.Vector3(1, 1, -1));
+
+                // Sea plane in metres, centred at scene origin (0, 0, 0).
+                // The plane lies in the XZ plane of Three.js (= horizontal in MapLibre).
+                const size = SEA_PLANE_HALF_SIZE * 2;
+                const geo  = new THREE.PlaneGeometry(size, size, 4, 4);
 
                 this.material = new THREE.ShaderMaterial({
                     uniforms: {
-                        time: { value: 0 },
-                        color: { value: new THREE.Color('#3ca9d4') }
+                        time:  { value: 0.0 },
+                        color: { value: new THREE.Color('#1a7fbf') }
                     },
                     vertexShader: `
-                        varying vec2 vUv;
+                        varying vec2 vPos;
                         void main() {
-                            vUv = uv;
+                            vPos = position.xy;
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
                     fragmentShader: `
-                        uniform vec3 color;
+                        uniform vec3  color;
                         uniform float time;
-                        varying vec2 vUv;
+                        varying vec2  vPos;
+
+                        // Simple pseudo-random hash for noise
+                        float hash(vec2 p) {
+                            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+                        }
+
+                        // Smooth bilinear noise in [0,1]
+                        float noise(vec2 p) {
+                            vec2 i = floor(p);
+                            vec2 f = fract(p);
+                            vec2 u = f * f * (3.0 - 2.0 * f); // smoothstep
+                            return mix(
+                                mix(hash(i),             hash(i + vec2(1,0)), u.x),
+                                mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x),
+                                u.y
+                            );
+                        }
+
                         void main() {
-                            // High-frequency animated shimmer
-                            float wave = sin(vUv.x * 3000.0 + time * 3.0) * cos(vUv.y * 3000.0 + time * 2.5);
-                            float alpha = 0.40 + wave * 0.15;
-                            gl_FragColor = vec4(color, alpha); 
+                            // Scale metres → a comfortable UV space
+                            // 1 unit ≈ 50 km so the plane (600 km half-size) spans ~24 units
+                            float scale = 1.0 / 50000.0;
+                            vec2 uv = vPos * scale;
+
+                            // Layer 1: large slow swell (low frequency)
+                            float swell = sin(uv.x * 1.2 + time * 0.4)
+                                        * cos(uv.y * 0.9 - time * 0.3);
+
+                            // Layer 2: medium cross-chop
+                            float chop  = sin((uv.x + uv.y) * 2.8 + time * 0.9)
+                                        * sin((uv.x - uv.y) * 2.2 - time * 0.7);
+
+                            // Layer 3: fine surface sparkle from noise
+                            vec2 sparkleUV = uv * 6.0 + vec2(time * 0.25, time * 0.18);
+                            float sparkle = noise(sparkleUV) * 2.0 - 1.0; // [-1,1]
+
+                            // Combine: swell dominates, chop adds texture, sparkle adds life
+                            float wave = swell * 0.50
+                                       + chop  * 0.30
+                                       + sparkle * 0.20;
+
+                            // Base alpha 0.42, wave ±0.10 → range [0.32, 0.52]
+                            float alpha = 0.42 + wave * 0.10;
+
+                            // Slight colour shift: crests are lighter/more cyan, troughs darker
+                            vec3 crest  = color * 1.18 + vec3(0.04, 0.06, 0.05);
+                            vec3 trough = color * 0.82;
+                            vec3 c = mix(trough, crest, wave * 0.5 + 0.5);
+
+                            gl_FragColor = vec4(c, alpha);
                         }
                     `,
                     transparent: true,
+                    depthWrite:  false,   // FIX: don't occlude terrain behind the plane
+                    depthTest:   true,    // still hidden by land above sea level
                     side: THREE.DoubleSide
                 });
 
-                this.mesh = new THREE.Mesh(planeGeometry, this.material);
-                this.mesh.position.set(0.5, 0.5, 0);
+                this.mesh = new THREE.Mesh(geo, this.material);
+                // PlaneGeometry lies in XY by default; rotate it flat (XZ).
+                this.mesh.rotation.x = -Math.PI / 2;
                 this.scene.add(this.mesh);
 
                 this.renderer = new THREE.WebGLRenderer({
-                    canvas: map.getCanvas(),
-                    context: gl,
+                    canvas:    map.getCanvas(),
+                    context:   gl,
                     antialias: true
                 });
                 this.renderer.autoClear = false;
             },
-            render: function (gl, matrix) {
-                this.material.uniforms.time.value += 0.025;
-                this.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
-                this.renderer.state.reset();
+
+            render(gl, args) {
+                // Advance animation clock
+                this.material.uniforms.time.value += 0.018;
+
+                // ── Build the scene-origin transform ──────────────────────────────
+                // Pass altitude = 0 so we sit at true sea level.
+                // MapLibre bakes terrain exaggeration into the Mercator Z, so this
+                // automatically compensates for the exaggeration: 1.5 setting.
+                const originMercator = maplibregl.MercatorCoordinate.fromLngLat(
+                    SCENE_ORIGIN, 0
+                );
+
+                const scale = originMercator.meterInMercatorCoordinateUnits();
+
+                // The local-to-world matrix: translate to origin, then scale metres → Mercator.
+                // Y scale is negated to match MapLibre's inverted Y axis.
+                const l = new THREE.Matrix4()
+                    .makeTranslation(originMercator.x, originMercator.y, originMercator.z)
+                    .scale(new THREE.Vector3(scale, -scale, scale));
+
+                // Combine with MapLibre's projection matrix
+                const m = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix);
+                this.camera.projectionMatrix = m.multiply(l);
+
+                // FIX: use resetState() (public API) instead of state.reset() (internal)
+                this.renderer.resetState();
                 this.renderer.render(this.scene, this.camera);
-                if (map) map.triggerRepaint();
+                map.triggerRepaint();
             }
         };
 
         map.on('style.load', () => {
-            map.addLayer(waterLayer);
+            // Insert the water layer specifically BEFORE our geojson marker layers
+            // so the labels and glows render distinctly ON TOP of the blue water.
+            map.addLayer(waterLayer, 'places-glow');
         });
 
-        // Update Camera overlay
+        // ─── Camera info overlay ──────────────────────────────────────────────────
         function updateCameraInfo() {
-            const center = map.getCenter();
-            const lng = center.lng.toFixed(4);
-            const lat = center.lat.toFixed(4);
-            const zoom = map.getZoom().toFixed(2);
-            const pitch = map.getPitch().toFixed(1);
+            const center  = map.getCenter();
+            const lng     = center.lng.toFixed(4);
+            const lat     = center.lat.toFixed(4);
+            const zoom    = map.getZoom().toFixed(2);
+            const pitch   = map.getPitch().toFixed(1);
             const bearing = map.getBearing().toFixed(1);
 
-            document.getElementById('c-center').innerText = `${lng}, ${lat}`;
-            document.getElementById('c-zoom').innerText = zoom;
-            document.getElementById('c-pitch').innerText = pitch + '°';
+            document.getElementById('c-center').innerText  = `${lng}, ${lat}`;
+            document.getElementById('c-zoom').innerText    = zoom;
+            document.getElementById('c-pitch').innerText   = pitch + '°';
             document.getElementById('c-bearing').innerText = bearing + '°';
 
-            // Format string that is highly usable in map initialization blocks
             const copyStr = `center: [${lng}, ${lat}], zoom: ${zoom}, pitch: ${pitch}, bearing: ${bearing}`;
             document.getElementById('c-copy-text').value = copyStr;
         }
@@ -301,7 +421,7 @@
             const btn = document.querySelector('.copy-btn');
             btn.innerText = 'Copied!';
             setTimeout(() => { btn.innerText = 'Copy'; }, 2000);
-        }
+        };
 
         map.on('move', updateCameraInfo);
         map.on('load', updateCameraInfo);
