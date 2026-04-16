@@ -1,0 +1,118 @@
+{
+  "version": 8,
+  "name": "GEBCO with TellingTales Terrain",
+  "metadata": {
+    "maputnik:renderer": "mlgljs"
+  },
+  "terrain": {
+    "source": "terrain-rgb",
+    "exaggeration": 1.5
+  },
+  "sky": {
+    "sky-color": "#88C6FC",
+    "horizon-color": "#FFFFFF",
+    "fog-color": "#88C6FC",
+    "sky-horizon-blend": 0.5,
+    "horizon-fog-blend": 1,
+    "fog-ground-blend": 1
+  },
+  "sources": {
+    "terrain-rgb": {
+      "type": "raster-dem",
+      "tiles": [
+        "gebcolerc://gis.ccom.unh.edu/server/rest/services/GEBCO/gebco_2025_elev_wmas_5x/ImageServer/tile/{z}/{y}/{x}"
+      ],
+      "minzoom": 0,
+      "maxzoom": 12,
+      "tileSize": 256,
+      "encoding": "mapbox"
+    },
+    "eox-satellite": {
+      "type": "raster",
+      "tiles": [
+        "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
+      ],
+      "minzoom": 0,
+      "maxzoom": 14,
+      "scheme": "xyz",
+      "tileSize": 256,
+      "attribution": "<a href=\"https://s2maps.eu\">Sentinel-2 cloudless - https://s2maps.eu</a> by <a href=\"https://eox.at\">EOX IT Services GmbH</a>"
+    },
+    "gebco-bathymetry": {
+      "type": "raster",
+      "tiles": [
+        "https://gis.ccom.unh.edu/server/rest/services/GEBCO/GEBCO_2024_Depths_BlueGreen3_WMAS/MapServer/tile/{z}/{y}/{x}"
+      ],
+      "tileSize": 256,
+      "minzoom": 0,
+      "maxzoom": 10,
+      "attribution": "GEBCO 2024 BlueGreen"
+    },
+    "locations": {
+      "type": "geojson",
+      "data": "caribbean_locations.geojson"
+    }
+  },
+  "layers": [
+    {
+      "id": "Satellite",
+      "type": "raster",
+      "source": "eox-satellite",
+      "paint": {
+        "raster-opacity": 1,
+        "raster-fade-duration": 0
+      }
+    },
+    {
+      "id": "gebco-layer",
+      "type": "raster",
+      "source": "gebco-bathymetry",
+      "paint": {
+        "raster-opacity": 0.55
+      }
+    },
+    {
+      "id": "places-glow",
+      "type": "circle",
+      "source": "locations",
+      "paint": {
+        "circle-radius": 15,
+        "circle-color": "#4da8da",
+        "circle-opacity": 0.3,
+        "circle-blur": 1,
+        "circle-pitch-alignment": "map",
+        "circle-pitch-scale": "map"
+      }
+    },
+    {
+      "id": "places-core",
+      "type": "circle",
+      "source": "locations",
+      "paint": {
+        "circle-radius": 4,
+        "circle-color": "#ffffff",
+        "circle-pitch-alignment": "map",
+        "circle-pitch-scale": "map"
+      }
+    },
+    {
+      "id": "places-labels",
+      "type": "symbol",
+      "source": "locations",
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+        "text-size": 15,
+        "text-anchor": "left",
+        "text-offset": [1, 0],
+        "text-pitch-alignment": "viewport",
+        "text-rotation-alignment": "viewport"
+      },
+      "paint": {
+        "text-color": "#ffffff",
+        "text-halo-color": "rgba(10, 15, 30, 0.8)",
+        "text-halo-width": 2
+      }
+    }
+  ]
+}

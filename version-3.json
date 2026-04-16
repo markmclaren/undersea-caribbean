@@ -1,0 +1,105 @@
+{
+  "version": 8,
+  "name": "Satellite with Terrain",
+  "metadata": {
+    "maputnik:renderer": "mlgljs"
+  },
+  "terrain": {
+    "source": "terrain-rgb",
+    "exaggeration": 1
+  },
+  "sky": {
+    "sky-color": "rgba(2, 0, 20, 1)",
+    "sky-horizon-blend": 0.2,
+    "horizon-color": "rgba(10, 0, 94, 1)",
+    "horizon-fog-blend": 0,
+    "fog-color": "#000000",
+    "fog-ground-blend": 0
+  },
+  "sources": {
+    "terrain-rgb": {
+      "type": "raster-dem",
+      "tiles": [
+        "https://tiles.wifidb.net/data/jaxa_terrainrgb_webp/{z}/{x}/{y}.webp"
+      ],
+      "minzoom": 0,
+      "maxzoom": 12,
+      "tileSize": 256,
+      "encoding": "mapbox"
+    },
+    "eox-satellite": {
+      "type": "raster",
+      "tiles": [
+        "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
+      ],
+      "minzoom": 0,
+      "maxzoom": 14,
+      "scheme": "xyz",
+      "tileSize": 256,
+      "attribution": "<a href=\"https://s2maps.eu\">Sentinel-2 cloudless - https://s2maps.eu</a> by <a href=\"https://eox.at\">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2024)"
+    },
+    "ocean": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -180,
+                    -90
+                  ],
+                  [
+                    -180,
+                    90
+                  ],
+                  [
+                    180,
+                    90
+                  ],
+                  [
+                    180,
+                    -90
+                  ],
+                  [
+                    -180,
+                    -90
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "sprite": "",
+  "glyphs": "https://orangemug.github.io/font-glyphs/glyphs/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "ocean-fill",
+      "type": "fill",
+      "source": "ocean",
+      "paint": {
+        "fill-color": "#a0c8f0"
+      }
+    },
+    {
+      "id": "Satellite",
+      "type": "raster",
+      "source": "eox-satellite",
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "raster-opacity": 1,
+        "raster-fade-duration": 0
+      }
+    }
+  ],
+  "id": "zjafcg8"
+}

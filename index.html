@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D World Terrain map with GEBCO</title>
+    <!-- MapLibre GL JS -->
+    <script src='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .camera-info {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(10, 15, 30, 0.75);
+            color: #e0e5ff;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Inter', -apple-system, sans-serif;
+            font-size: 13px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 320px;
+        }
+
+        .camera-info-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .camera-info .info-row {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .camera-info span:first-child {
+            color: #8bc6ec;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+
+        .camera-info span:last-child {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .copy-container {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .copy-input {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #a0aabf;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-family: monospace;
+            font-size: 11px;
+            outline: none;
+        }
+
+        .copy-btn {
+            background: #4da8da;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: #8bc6ec;
+        }
+    </style>
+    <!-- Modern font for premium feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <div class="camera-info" id="camera-info">
+        <div class="camera-info-grid">
+            <div class="info-row" style="grid-column: span 2;"><span>Center</span><span id="c-center">0, 0</span></div>
+            <div class="info-row"><span>Zoom</span><span id="c-zoom">0.00</span></div>
+            <div class="info-row"><span>Pitch</span><span id="c-pitch">0.0°</span></div>
+            <div class="info-row"><span>Bearing</span><span id="c-bearing">0.0°</span></div>
+        </div>
+        <div class="copy-container">
+            <input type="text" class="copy-input" id="c-copy-text" readonly />
+            <button class="copy-btn" onclick="copyCameraState()">Copy</button>
+        </div>
+    </div>
+
+    <!-- LERC Decoder -->
+    <script src="https://cdn.jsdelivr.net/npm/lerc@4.1.1/LercDecode.min.js"></script>
+
+    <!-- Three.js ES Modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        // Register custom protocol to decode Esri LERC tiles into Mapbox Terrain RGB format
+        maplibregl.addProtocol('gebcolerc', (params, abortController) => {
+            const tileUrl = params.url.replace('gebcolerc://', 'https://');
+
+            return fetch(tileUrl, { signal: abortController.signal })
+                .then(res => {
+                    if (!res.ok) throw new Error(res.statusText);
+                    return res.arrayBuffer();
+                })
+                .then(async buffer => {
+                    if (!Lerc.isLoaded()) {
+                        await Lerc.load({ locateFile: () => 'https://cdn.jsdelivr.net/npm/lerc@4.1.1/lerc-wasm.wasm' });
+                    }
+                    const decoded = Lerc.decode(buffer);
+                    const width = decoded.width;
+                    const height = decoded.height;
+                    const pixels = decoded.pixels[0];
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    const imgData = ctx.createImageData(width, height);
+
+                    const noDataValue = decoded.statistics && decoded.statistics[0] ? decoded.statistics[0].noDataValue : NaN;
+
+                    for (let i = 0; i < pixels.length; i++) {
+                        let elevation = pixels[i];
+                        if (elevation === noDataValue || isNaN(elevation)) {
+                            elevation = 0; // default to 0 if no data
+                        }
+
+                        // Mapbox Terrain RGB encoding
+                        let h = Math.round((elevation + 10000) * 10);
+                        if (h < 0) h = 0;
+                        if (h > 16777215) h = 16777215;
+
+                        const idx = i * 4;
+                        imgData.data[idx] = (h >> 16) & 0xFF; // R
+                        imgData.data[idx + 1] = (h >> 8) & 0xFF; // G
+                        imgData.data[idx + 2] = h & 0xFF;  // B
+                        imgData.data[idx + 3] = 255;       // Alpha
+                    }
+
+                    ctx.putImageData(imgData, 0, 0);
+
+                    return new Promise(resolve => {
+                        createImageBitmap(canvas).then(imageBitmap => {
+                            resolve({ data: imageBitmap });
+                        });
+                    });
+                });
+        });
+
+        // Initialize MapLibre GL JS
+        const map = new maplibregl.Map({
+            container: 'map', // id of the element
+            style: 'style.json', // URL to the style file, configured purely in JSON as requested
+            center: [-60.7880, 14.1050], // starting position [lng, lat]
+            zoom: 9.91, // starting zoom
+            minZoom: 3.5, // limit zooming out to avoid seeing the map as a tiny strip
+            pitch: 76.5, // set pitch to see 3D effect by default
+            bearing: -20.7,
+            maxPitch: 85,
+            renderWorldCopies: false, // Prevent continuous horizontal scrolling of multiple earths
+        });
+
+
+        // Add navigation controls
+        map.addControl(
+            new maplibregl.NavigationControl({
+                visualizePitch: true, // helps with 3d
+                showZoom: true,
+                showCompass: true
+            }),
+            'top-right'
+        );
+
+        // Three.js Animated Water Plane
+        const waterLayer = {
+            id: 'sea-level-plane',
+            type: 'custom',
+            renderingMode: '3d',
+            onAdd: function (map, gl) {
+                this.camera = new THREE.Camera();
+                this.scene = new THREE.Scene();
+
+                // Mercator space from 0 to 1
+                const planeGeometry = new THREE.PlaneGeometry(1, 1, 2, 2);
+
+                this.material = new THREE.ShaderMaterial({
+                    uniforms: {
+                        time: { value: 0 },
+                        color: { value: new THREE.Color('#3ca9d4') }
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform vec3 color;
+                        uniform float time;
+                        varying vec2 vUv;
+                        void main() {
+                            // High-frequency animated shimmer
+                            float wave = sin(vUv.x * 3000.0 + time * 3.0) * cos(vUv.y * 3000.0 + time * 2.5);
+                            float alpha = 0.40 + wave * 0.15;
+                            gl_FragColor = vec4(color, alpha); 
+                        }
+                    `,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+
+                this.mesh = new THREE.Mesh(planeGeometry, this.material);
+                this.mesh.position.set(0.5, 0.5, 0);
+                this.scene.add(this.mesh);
+
+                this.renderer = new THREE.WebGLRenderer({
+                    canvas: map.getCanvas(),
+                    context: gl,
+                    antialias: true
+                });
+                this.renderer.autoClear = false;
+            },
+            render: function (gl, matrix) {
+                this.material.uniforms.time.value += 0.025;
+                this.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
+                this.renderer.state.reset();
+                this.renderer.render(this.scene, this.camera);
+                if (map) map.triggerRepaint();
+            }
+        };
+
+        map.on('style.load', () => {
+            map.addLayer(waterLayer);
+        });
+
+        // Update Camera overlay
+        function updateCameraInfo() {
+            const center = map.getCenter();
+            const lng = center.lng.toFixed(4);
+            const lat = center.lat.toFixed(4);
+            const zoom = map.getZoom().toFixed(2);
+            const pitch = map.getPitch().toFixed(1);
+            const bearing = map.getBearing().toFixed(1);
+
+            document.getElementById('c-center').innerText = `${lng}, ${lat}`;
+            document.getElementById('c-zoom').innerText = zoom;
+            document.getElementById('c-pitch').innerText = pitch + '°';
+            document.getElementById('c-bearing').innerText = bearing + '°';
+
+            // Format string that is highly usable in map initialization blocks
+            const copyStr = `center: [${lng}, ${lat}], zoom: ${zoom}, pitch: ${pitch}, bearing: ${bearing}`;
+            document.getElementById('c-copy-text').value = copyStr;
+        }
+
+        window.copyCameraState = function () {
+            const input = document.getElementById('c-copy-text');
+            input.select();
+            document.execCommand('copy');
+            const btn = document.querySelector('.copy-btn');
+            btn.innerText = 'Copied!';
+            setTimeout(() => { btn.innerText = 'Copy'; }, 2000);
+        }
+
+        map.on('move', updateCameraInfo);
+        map.on('load', updateCameraInfo);
+    </script>
+</body>
+
+</html>

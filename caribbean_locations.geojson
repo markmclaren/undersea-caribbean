@@ -1,0 +1,122 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Trinidad"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -61.2225,
+          10.6918
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tobago"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -60.6737,
+          11.1809
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Martinique"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -61.0242,
+          14.6415
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Carriacou"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -61.4494,
+          12.4786
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Grenada"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -61.679,
+          12.1165
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Haiti"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.3074,
+          18.9712
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jamaica"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.2975,
+          18.1096
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Cuba"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.7812,
+          21.5218
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Saint Vincent"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -61.2872,
+          12.9843
+        ]
+      }
+    }
+  ]
+}
