@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D World Terrain map with GEBCO</title>
+    <title>Undersea Caribbean</title>
     <!-- MapLibre GL JS -->
     <script src='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js'></script>
     <link href='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css' rel='stylesheet' />
@@ -173,9 +173,9 @@
                         if (h > 16777215) h = 16777215;
 
                         const idx = i * 4;
-                        imgData.data[idx]     = (h >> 16) & 0xFF; // R
-                        imgData.data[idx + 1] = (h >> 8)  & 0xFF; // G
-                        imgData.data[idx + 2] =  h        & 0xFF; // B
+                        imgData.data[idx] = (h >> 16) & 0xFF; // R
+                        imgData.data[idx + 1] = (h >> 8) & 0xFF; // G
+                        imgData.data[idx + 2] = h & 0xFF; // B
                         imgData.data[idx + 3] = 255;               // A
                     }
 
@@ -260,7 +260,7 @@
 
             onAdd(map, gl) {
                 this.camera = new THREE.Camera();
-                this.scene  = new THREE.Scene();
+                this.scene = new THREE.Scene();
 
                 // Rotate scene so Three.js Y-up → MapLibre Z-up,
                 // and mirror Z so it points north (MapLibre convention).
@@ -270,11 +270,11 @@
                 // Sea plane in metres, centred at scene origin (0, 0, 0).
                 // The plane lies in the XZ plane of Three.js (= horizontal in MapLibre).
                 const size = SEA_PLANE_HALF_SIZE * 2;
-                const geo  = new THREE.PlaneGeometry(size, size, 4, 4);
+                const geo = new THREE.PlaneGeometry(size, size, 4, 4);
 
                 this.material = new THREE.ShaderMaterial({
                     uniforms: {
-                        time:  { value: 0.0 },
+                        time: { value: 0.0 },
                         color: { value: new THREE.Color('#1a7fbf') }
                     },
                     vertexShader: `
@@ -341,8 +341,8 @@
                         }
                     `,
                     transparent: true,
-                    depthWrite:  false,   // FIX: don't occlude terrain behind the plane
-                    depthTest:   true,    // still hidden by land above sea level
+                    depthWrite: false,   // FIX: don't occlude terrain behind the plane
+                    depthTest: true,    // still hidden by land above sea level
                     side: THREE.DoubleSide
                 });
 
@@ -352,8 +352,8 @@
                 this.scene.add(this.mesh);
 
                 this.renderer = new THREE.WebGLRenderer({
-                    canvas:    map.getCanvas(),
-                    context:   gl,
+                    canvas: map.getCanvas(),
+                    context: gl,
                     antialias: true
                 });
                 this.renderer.autoClear = false;
@@ -398,16 +398,16 @@
 
         // ─── Camera info overlay ──────────────────────────────────────────────────
         function updateCameraInfo() {
-            const center  = map.getCenter();
-            const lng     = center.lng.toFixed(4);
-            const lat     = center.lat.toFixed(4);
-            const zoom    = map.getZoom().toFixed(2);
-            const pitch   = map.getPitch().toFixed(1);
+            const center = map.getCenter();
+            const lng = center.lng.toFixed(4);
+            const lat = center.lat.toFixed(4);
+            const zoom = map.getZoom().toFixed(2);
+            const pitch = map.getPitch().toFixed(1);
             const bearing = map.getBearing().toFixed(1);
 
-            document.getElementById('c-center').innerText  = `${lng}, ${lat}`;
-            document.getElementById('c-zoom').innerText    = zoom;
-            document.getElementById('c-pitch').innerText   = pitch + '°';
+            document.getElementById('c-center').innerText = `${lng}, ${lat}`;
+            document.getElementById('c-zoom').innerText = zoom;
+            document.getElementById('c-pitch').innerText = pitch + '°';
             document.getElementById('c-bearing').innerText = bearing + '°';
 
             const copyStr = `center: [${lng}, ${lat}], zoom: ${zoom}, pitch: ${pitch}, bearing: ${bearing}`;
