@@ -107,6 +107,7 @@
 
     <div id="map"></div>
 
+    <!--
     <div class="camera-info" id="camera-info">
         <div class="camera-info-grid">
             <div class="info-row" style="grid-column: span 2;"><span>Center</span><span id="c-center">0, 0</span></div>
@@ -119,6 +120,7 @@
             <button class="copy-btn" onclick="copyCameraState()">Copy</button>
         </div>
     </div>
+    -->
 
     <!-- LERC Decoder -->
     <script src="https://cdn.jsdelivr.net/npm/lerc@4.1.1/LercDecode.min.js"></script>
@@ -423,8 +425,8 @@
             setTimeout(() => { btn.innerText = 'Copy'; }, 2000);
         };
 
-        map.on('move', updateCameraInfo);
-        map.on('load', updateCameraInfo);
+        //map.on('move', updateCameraInfo);
+        //map.on('load', updateCameraInfo);
     </script>
 </body>
 
