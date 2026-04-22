@@ -75,8 +75,12 @@ function draw() {
 }
 
 function initializeBoids() {
+  let isMobile = width < 768;
+  let numBoids = isMobile ? floor(NUM_BOIDS * 0.4) : NUM_BOIDS;
+  let numCyan = isMobile ? floor(NUM_CYAN_BOIDS * 0.4) : NUM_CYAN_BOIDS;
+
   // Black bottom fish (left to right)
-  for (let i = 0; i < NUM_BOIDS; i++) {
+  for (let i = 0; i < numBoids; i++) {
     boids.push(new Boid(
       random(width),
       random(height * 0.67, height),
@@ -89,7 +93,7 @@ function initializeBoids() {
   }
 
   // Rainbow middle fish (right to left, slower)
-  for (let i = 0; i < NUM_CYAN_BOIDS; i++) {
+  for (let i = 0; i < numCyan; i++) {
     boids.push(new Boid(
       random(width),
       random(height * 0.40, height * 0.67),
@@ -122,9 +126,72 @@ class Boid {
   }
 
   flock(boids) {
-    let sep = this.separate(boids);
-    let ali = this.align(boids);
-    let coh = this.cohesion(boids);
+    let sep = createVector();
+    let ali = createVector();
+    let coh = createVector();
+    let sepCount = 0;
+    let aliCount = 0;
+    let cohCount = 0;
+
+    let desiredSepSameSq = 120 * 120;
+    let desiredSepDiffSq = 220 * 220;
+    let neighborDistSq = 70 * 70;
+
+    for (let other of boids) {
+      if (other === this) continue;
+      
+      let dx = this.pos.x - other.pos.x;
+      let dy = this.pos.y - other.pos.y;
+      let dSq = dx * dx + dy * dy;
+
+      // Separation
+      let desiredSq = other.direction === this.direction ? desiredSepSameSq : desiredSepDiffSq;
+      if (dSq > 0 && dSq < desiredSq) {
+        let d = sqrt(dSq);
+        let diff = createVector(dx, dy);
+        diff.normalize();
+        diff.div(d);
+        if (other.direction !== this.direction) {
+          diff.mult(1.8);
+        }
+        sep.add(diff);
+        sepCount++;
+      }
+
+      // Alignment and Cohesion
+      if (dSq > 0 && dSq < neighborDistSq && other.direction === this.direction) {
+        ali.add(other.vel);
+        aliCount++;
+        coh.add(other.pos);
+        cohCount++;
+      }
+    }
+
+    if (sepCount > 0) {
+      sep.div(sepCount);
+      if (sep.magSq() > 0) {
+        sep.setMag(this.maxSpeed);
+        sep.sub(this.vel);
+        sep.limit(this.maxForce);
+      }
+    }
+
+    if (aliCount > 0) {
+      ali.div(aliCount);
+      ali.setMag(this.maxSpeed);
+      let steer = p5.Vector.sub(ali, this.vel);
+      steer.limit(this.maxForce);
+      ali = steer;
+    }
+
+    if (cohCount > 0) {
+      coh.div(cohCount);
+      let desired = p5.Vector.sub(coh, this.pos);
+      desired.setMag(this.maxSpeed);
+      let steer = p5.Vector.sub(desired, this.vel);
+      steer.limit(this.maxForce);
+      coh = steer;
+    }
 
     sep.mult(2.5);
     ali.mult(0.8);
@@ -193,82 +260,4 @@ class Boid {
     }
   }
 
-  separate(boids) {
-    let steer = createVector();
-    let count = 0;
-
-    for (let other of boids) {
-      let d = p5.Vector.dist(this.pos, other.pos);
-      let desired = other.direction === this.direction ? 120 : 220;
-      if (d > 0 && d < desired) {
-        let diff = p5.Vector.sub(this.pos, other.pos);
-        diff.normalize();
-        diff.div(d);
-        if (other.direction !== this.direction) {
-          diff.mult(1.8);
-        }
-        steer.add(diff);
-        count++;
-      }
-    }
-
-    if (count > 0) steer.div(count);
-    if (steer.mag() > 0) {
-      steer.setMag(this.maxSpeed);
-      steer.sub(this.vel);
-      steer.limit(this.maxForce);
-    }
-    return steer;
-  }
-
-  align(boids) {
-    let dist = 70;
-    let sum = createVector();
-    let count = 0;
-
-    for (let other of boids) {
-      let d = p5.Vector.dist(this.pos, other.pos);
-      if (d > 0 && d < dist && other.direction === this.direction) {
-        sum.add(other.vel);
-        count++;
-      }
-    }
-
-    if (count > 0) {
-      sum.div(count);
-      sum.setMag(this.maxSpeed);
-      let steer = p5.Vector.sub(sum, this.vel);
-      steer.limit(this.maxForce);
-      return steer;
-    }
-    return createVector();
-  }
-
-  cohesion(boids) {
-    let dist = 70;
-    let sum = createVector();
-    let count = 0;
-
-    for (let other of boids) {
-      let d = p5.Vector.dist(this.pos, other.pos);
-      if (d > 0 && d < dist && other.direction === this.direction) {
-        sum.add(other.pos);
-        count++;
-      }
-    }
-
-    if (count > 0) {
-      sum.div(count);
-      return this.seek(sum);
-    }
-    return createVector();
-  }
-
-  seek(target) {
-    let desired = p5.Vector.sub(target, this.pos);
-    desired.setMag(this.maxSpeed);
-    let steer = p5.Vector.sub(desired, this.vel);
-    steer.limit(this.maxForce);
-    return steer;
-  }
 }
