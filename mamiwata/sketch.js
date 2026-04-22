@@ -48,23 +48,27 @@ function draw() {
   }
 
   imageMode(CENTER);
-  // Maintain mermaid image aspect ratio, fit within screen
+  // Maintain mermaid image aspect ratio, fit within 90% of the screen to leave a margin
   let imgAspect = mermaid.width / mermaid.height;
   let canvasAspect = width / height;
   let displayWidth, displayHeight;
+  let scaleFactor = 0.9; // 10% padding
+
   if (imgAspect > canvasAspect) {
-    displayWidth = width;
-    displayHeight = width / imgAspect;
+    displayWidth = width * scaleFactor;
+    displayHeight = (width * scaleFactor) / imgAspect;
   } else {
-    displayHeight = height;
-    displayWidth = height * imgAspect;
+    displayHeight = height * scaleFactor;
+    displayWidth = (height * scaleFactor) * imgAspect;
   }
 
   // Efficient native HTML5 canvas drop-shadow for a glowing effect
   drawingContext.shadowBlur = width < 768 ? 15 : 30;
   drawingContext.shadowColor = "rgba(0, 255, 255, 0.45)"; // Soft cyan glow
 
-  image(mermaid, width / 2, height / 2, displayWidth, displayHeight);
+  // Shift mermaid slightly to the right (about 5% of the screen width)
+  let mX = width / 2 + (width * 0.05);
+  image(mermaid, mX, height / 2, displayWidth, displayHeight);
 
   // Critical: Reset shadow so it doesn't bleed into the attribution text!
   drawingContext.shadowBlur = 0;
