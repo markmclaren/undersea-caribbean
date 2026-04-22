@@ -74,7 +74,30 @@ function draw() {
   text(titleStr, width - 18, height - 14);
 }
 
+let blackGraphic;
+let rainbowGraphics = [];
+
+const HIGH_RES_SCALE = 8;
+
+function createFishGraphic(c) {
+  let w = 26 * HIGH_RES_SCALE;
+  let h = 10 * HIGH_RES_SCALE;
+  let pg = createGraphics(w, h);
+  pg.tint(c);
+  pg.image(fishImg, 0, 0, w, h);
+  return pg;
+}
+
 function initializeBoids() {
+  if (!blackGraphic) {
+    blackGraphic = createFishGraphic(color(0, 0, 0));
+  }
+  if (rainbowGraphics.length === 0) {
+    for (let c of RAINBOW_COLORS) {
+      rainbowGraphics.push(createFishGraphic(c));
+    }
+  }
+
   let isMobile = width < 768;
   let numBoids = isMobile ? floor(NUM_BOIDS * 0.4) : NUM_BOIDS;
   let numCyan = isMobile ? floor(NUM_CYAN_BOIDS * 0.4) : NUM_CYAN_BOIDS;
@@ -84,7 +107,7 @@ function initializeBoids() {
     boids.push(new Boid(
       random(width),
       random(height * 0.67, height),
-      color(0, 0, 0),
+      blackGraphic,
       1.0,
       random(3, 7),
       random(1.6, 2.4),
@@ -97,7 +120,7 @@ function initializeBoids() {
     boids.push(new Boid(
       random(width),
       random(height * 0.40, height * 0.67),
-      random(RAINBOW_COLORS),
+      random(rainbowGraphics),
       -1.0,
       random(2, 5),
       random(0.8, 1.2),
@@ -107,12 +130,12 @@ function initializeBoids() {
 }
 
 class Boid {
-  constructor(x, y, fishColor = color(255, 140, 0), direction = 1, scale = random(4, 7), maxSpeed = random(1.6, 2.4), boundaries = { softBoundary: height * (2/3), hardBoundary: height * 0.5 }) {
+  constructor(x, y, fishGraphic, direction = 1, scale = random(4, 7), maxSpeed = random(1.6, 2.4), boundaries = { softBoundary: height * (2/3), hardBoundary: height * 0.5 }) {
     this.pos = createVector(x, y);
     this.vel = createVector(random(0.3, 1.0) * direction, random(-0.2, 0.2));
     this.acc = createVector();
 
-    this.fishColor = fishColor;
+    this.fishGraphic = fishGraphic;
     this.direction = direction;  // 1 for right, -1 for left
     this.scale = scale;
     this.maxForce = 0.07;
@@ -126,9 +149,9 @@ class Boid {
   }
 
   flock(boids) {
-    let sep = createVector();
-    let ali = createVector();
-    let coh = createVector();
+    let sepX = 0, sepY = 0;
+    let aliX = 0, aliY = 0;
+    let cohX = 0, cohY = 0;
     let sepCount = 0;
     let aliCount = 0;
     let cohCount = 0;
@@ -147,25 +170,31 @@ class Boid {
       // Separation
       let desiredSq = other.direction === this.direction ? desiredSepSameSq : desiredSepDiffSq;
       if (dSq > 0 && dSq < desiredSq) {
-        let d = sqrt(dSq);
-        let diff = createVector(dx, dy);
-        diff.normalize();
-        diff.div(d);
+        let diffX = dx / dSq;
+        let diffY = dy / dSq;
         if (other.direction !== this.direction) {
-          diff.mult(1.8);
+          diffX *= 1.8;
+          diffY *= 1.8;
         }
-        sep.add(diff);
+        sepX += diffX;
+        sepY += diffY;
         sepCount++;
       }
 
       // Alignment and Cohesion
       if (dSq > 0 && dSq < neighborDistSq && other.direction === this.direction) {
-        ali.add(other.vel);
+        aliX += other.vel.x;
+        aliY += other.vel.y;
         aliCount++;
-        coh.add(other.pos);
+        cohX += other.pos.x;
+        cohY += other.pos.y;
         cohCount++;
       }
     }
+
+    let sep = createVector(sepX, sepY);
+    let ali = createVector(aliX, aliY);
+    let coh = createVector(cohX, cohY);
 
     if (sepCount > 0) {
       sep.div(sepCount);
@@ -179,18 +208,16 @@ class Boid {
     if (aliCount > 0) {
       ali.div(aliCount);
       ali.setMag(this.maxSpeed);
-      let steer = p5.Vector.sub(ali, this.vel);
-      steer.limit(this.maxForce);
-      ali = steer;
+      ali.sub(this.vel);
+      ali.limit(this.maxForce);
     }
 
     if (cohCount > 0) {
       coh.div(cohCount);
       let desired = p5.Vector.sub(coh, this.pos);
       desired.setMag(this.maxSpeed);
-      let steer = p5.Vector.sub(desired, this.vel);
-      steer.limit(this.maxForce);
-      coh = steer;
+      coh = p5.Vector.sub(desired, this.vel);
+      coh.limit(this.maxForce);
     }
 
     sep.mult(2.5);
@@ -229,9 +256,7 @@ class Boid {
     scale(this.scale);
 
     imageMode(CENTER);
-    tint(this.fishColor);
-    image(fishImg, 0, 0, 26, 10);
-    noTint();
+    image(this.fishGraphic, 0, 0, 26, 10);
     pop();
   }
 
