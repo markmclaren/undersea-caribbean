@@ -59,7 +59,15 @@ function draw() {
     displayHeight = height;
     displayWidth = height * imgAspect;
   }
+
+  // Efficient native HTML5 canvas drop-shadow for a glowing effect
+  drawingContext.shadowBlur = width < 768 ? 15 : 30;
+  drawingContext.shadowColor = "rgba(0, 255, 255, 0.45)"; // Soft cyan glow
+
   image(mermaid, width / 2, height / 2, displayWidth, displayHeight);
+
+  // Critical: Reset shadow so it doesn't bleed into the attribution text!
+  drawingContext.shadowBlur = 0;
 
   // Attribution title
   if (titleFont) {
